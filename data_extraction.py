@@ -17,11 +17,9 @@ class DataExtractor():
 
         return table_dataframe
     
-db_connector1 = utils.DatabaseConnector()
-extractor1 = DataExtractor()
-df = extractor1.read_rds_table(db_connector1, "legacy_users")
-
-
-# issues:
-# takes forever to run. if it does complete, nothing is returned despite last line being: df.head(10)
-# why
+# db_connector1 = utils.DatabaseConnector()
+# extractor1 = DataExtractor()
+# df = extractor1.read_rds_table(db_connector1, "legacy_users")
+# print(df.head(100))
+# print(df.info())
+# print(df.isna().mean() * 100)
