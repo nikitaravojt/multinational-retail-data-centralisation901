@@ -32,6 +32,6 @@ class DatabaseConnector():
     
 
 
-db1 = DatabaseConnector()
-engine1 = db1.init_db_engine("db_credentials.yaml")
-print(db1.list_db_tables(engine1))
+# db1 = DatabaseConnector()
+# engine1 = db1.init_db_engine("db_credentials.yaml")
+# print(db1.list_db_tables(engine1))
