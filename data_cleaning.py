@@ -1,9 +1,9 @@
-from typing import Any
 import pandas as pd
 import numpy as np
 import database_utils as utils
 import data_extraction as ext
 import re
+
 
 class DataCleaning():
 
@@ -14,7 +14,61 @@ class DataCleaning():
     data entries as np.nan.
     """
 
+    def __name_cleaning(self, df, target_col):
+        """
+        """
+        valid_name_pattern = re.compile(r'^[A-Za-zÄäÖöÜüßé.\'\s-]+$')
+
+        df[target_col] = df[target_col].apply(lambda x: x.capitalize() \
+                                if valid_name_pattern.match(str(x)) else np.nan)
+
+        return df
+
+
+    def __email_cleaning(self, df, target_col):
+        """
+        """
+        # Some entries are valid but mistakenly use @@ instead of @:
+        df[target_col] = df[target_col].str.replace(r'@@', '@', regex=True)
+
+        # Check for str@str.str pattern
+        email_pattern = re.compile(r'^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$')
+
+        df[target_col] = df[target_col].apply( \
+            lambda x: x if email_pattern.match(str(x)) else np.nan)
+
+        return df
+
+
+    def __country_cleaning(self, df, target_col):
+        """
+        """
+        valid_countries = ['Germany', 'United Kingdom', 'United States']
+
+        df[target_col] = df[target_col].apply(\
+            lambda x: x.strip() if str(x).strip() in valid_countries else np.nan)
+
+        return df
+
+
+    def __address_cleaning(self, row):
+        """Private method to clean customer addresses. 
+        1. All valid entries have address lines separated by
+        a \n character. Replace all these with ", ".
+        2. If an entry does not have a comma anywhere in the
+        string, as a valid address would, then it is invalidated.   
+        """
+        address = row['address']
+        address = re.sub(r'\n', ', ', address)
+        if "," not in address:
+            address = np.nan
+
+        return address
+    
+
     def __date_cleaning(self, df, target_col):
+        """
+        """
         from dateutil.parser import parse
 
         def parse_flexible_date(date_str):
@@ -49,7 +103,7 @@ class DataCleaning():
         1. Check for pre-existing +1, +44, +49 or 001 leading codes and
         adjust country_code accordingly.
         2. Remove leading codes if present to begin cleaning.
-        3. Remove all special chars (e.g., parantheses, hyphens, dots).
+        3. Remove all parantheses, hyphens, dots.
         4. Remove all extensions.
         5. If there is a leading zero, remove it unless its a US number.
         6. Add the leading (country code) based on value of country_code.
@@ -117,27 +171,34 @@ class DataCleaning():
         -Create final method to call each of these cleaning methods one by one,
         finishing by purging any and all rows containing np.nan. Return cleaned_df.
         """
-        # df = df.drop_duplicates(inplace=True) # remove any exact duplicates
         df['country_code'] = df.apply(self.__country_code_cleaning, axis=1)
         df['phone_number'] = df.apply(self.__phone_number_cleaning, axis=1)
+        df['address'] = df.apply(self.__address_cleaning, axis=1)
         df = self.__date_cleaning(df, target_col='date_of_birth')
         df = self.__date_cleaning(df, target_col='join_date')
-        # repalace all NULLs with np.nan
+        df = self.__name_cleaning(df, target_col='first_name')
+        df = self.__name_cleaning(df, target_col='last_name')
+        df = self.__email_cleaning(df, target_col='email_address')
+        df = self.__country_cleaning(df, target_col='country')
+        df = df.drop_duplicates() # remove any exact duplicates
 
+        # Standardise all invalid entries (make them all np.nan)
+        df = df.fillna(np.nan)
+        df.replace('NULL', np.nan, inplace=True)
 
-        # Drop all rows containing NULL using masking
-        # null_mask = df.isna() | (df == 'NULL') # bitwise OR
-        # df_clean = df[~null_mask.any(axis = 1)]
 
         return df
 
 
-db_connector1 = utils.DatabaseConnector()
-extractor1 = ext.DataExtractor()
-df = extractor1.read_rds_table(db_connector1, "legacy_users")
+# db_connector1 = utils.DatabaseConnector()
+# extractor1 = ext.DataExtractor()
+# df = extractor1.read_rds_table(db_connector1, "legacy_users")
 
-cleaner = DataCleaning()
-clean_data = cleaner.clean_user_data(df)
+# cleaner = DataCleaning()
+# clean_data = cleaner.clean_user_data(df)
+# print(type(clean_data))
+# # clean_data.info()
+# clean_data.head(10)
 
 
 
