@@ -31,7 +31,14 @@ class DatabaseConnector():
         return table_names
     
 
+    def upload_to_db(self, df, table_name, creds_filepath):
+        creds = self.read_db_creds(creds_filepath)
+        engine_url = ( 
+            f'postgresql://{creds["LOCAL_USER"]}:'
+            f'{creds["LOCAL_PASSWORD"]}@{creds["LOCAL_HOST"]}:'
+            f'{creds["LOCAL_PORT"]}/{creds["LOCAL_DATABASE"]}'
+        )
+        engine = create_engine(engine_url)
 
-# db1 = DatabaseConnector()
-# engine1 = db1.init_db_engine("db_credentials.yaml")
-# print(db1.list_db_tables(engine1))
+        # Upload the DataFrame to PostgreSQL
+        df.to_sql(table_name, con=engine, if_exists='replace', index=False)

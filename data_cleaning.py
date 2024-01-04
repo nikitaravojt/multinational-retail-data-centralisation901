@@ -66,7 +66,7 @@ class DataCleaning():
         return address
     
 
-    def __date_cleaning(self, df, target_col):
+    def __date_cleaning(self, df, target_col, date_format):
         """
         """
         from dateutil.parser import parse
@@ -81,7 +81,7 @@ class DataCleaning():
                 return pd.NaT
 
         df[target_col] = df[target_col].astype(str).apply(parse_flexible_date)
-        df[target_col] = pd.to_datetime(df[target_col], format="%Y-%m-%d", errors='coerce')
+        df[target_col] = pd.to_datetime(df[target_col], format=date_format, errors='coerce')
 
         return df
 
@@ -174,8 +174,8 @@ class DataCleaning():
         df['country_code'] = df.apply(self.__country_code_cleaning, axis=1)
         df['phone_number'] = df.apply(self.__phone_number_cleaning, axis=1)
         df['address'] = df.apply(self.__address_cleaning, axis=1)
-        df = self.__date_cleaning(df, target_col='date_of_birth')
-        df = self.__date_cleaning(df, target_col='join_date')
+        df = self.__date_cleaning(df, target_col='date_of_birth', date_format="%Y-%m-%d")
+        df = self.__date_cleaning(df, target_col='join_date', date_format="%Y-%m-%d")
         df = self.__name_cleaning(df, target_col='first_name')
         df = self.__name_cleaning(df, target_col='last_name')
         df = self.__email_cleaning(df, target_col='email_address')
@@ -186,37 +186,91 @@ class DataCleaning():
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
 
+        return df
+
+
+    def clean_card_data(self, df):
+        """ Workflow:
+        - Remove any df cols that are not: card_number, expiry_date,
+        card_provider or date_payment_confirmed.
+        - Clean card_provider. Invalidate all entries that are not in 
+        provider list.
+        - Cast all card_number entries to str type.
+        - Clean card_number row-wise (using .apply()). 
+        - Clean expiry_date.
+        - Clean date_payment_confirmed using __date_cleaning() helper. 
+        
+        Replace all NULLs with np.nan. Execute df.fillna(np.nan) also.
+        """
+        provider_card_lengths = {
+            'Diners Club / Carte Blanche': 14,
+            'American Express': 15,
+            'JCB 16 digit': 16,
+            'JCB 15 digit': 15,
+            'Maestro': 12,
+            'Mastercard': 16,
+            'Discover': 16,
+            'VISA 19 digit': 19,
+            'VISA 16 digit': 16,
+            'VISA 13 digit': 13
+        }
+        valid_providers = list(provider_card_lengths.keys())
+
+        # Cleaning card provider col
+        def __clean_card_provider(row):
+            provider = str(row['card_provider'])
+            if provider in valid_providers:
+                return provider
+            else:
+                return np.nan
+            
+        def __clean_card_number(row):
+            num = str(row['card_number'])
+            provider = str(row['card_provider'])
+
+            if (provider in valid_providers) and \
+                (len(num) == provider_card_lengths[provider]) and \
+                (num.isdigit()):
+                return num
+            else:
+                return np.nan
+
+        def __clean_expiry_date(df, target_col):
+            # Using regex instead of __date_cleaning() as its parser
+            # gets confused over the mm/yy date format.
+            expiry_regex = r'\d{2}/\d{2}'
+            
+            def process(entry):
+                match = re.match(expiry_regex, entry)
+                if match:
+                    return entry
+                else: 
+                    return np.nan
+            
+            df[target_col] = df[target_col].astype(str).apply(process)
+
+            return df
+
+
+        # Ops
+        df = df[['card_number', 'expiry_date', 'card_provider', 'date_payment_confirmed']]
+        df['card_number'] = df['card_number'].astype(str)
+
+        df['card_provider'] = df.apply(__clean_card_provider, axis=1)
+        df['card_number'] = df.apply(__clean_card_number, axis=1)
+        df = self.__date_cleaning(df, target_col='date_payment_confirmed', date_format="%Y-%m-%d")
+        df = __clean_expiry_date(df, "expiry_date")
+
+        df = df.drop_duplicates() # remove any exact duplicates
+        df = df.fillna(np.nan)
+        df.replace('NULL', np.nan, inplace=True)
 
         return df
 
 
-# db_connector1 = utils.DatabaseConnector()
-# extractor1 = ext.DataExtractor()
-# df = extractor1.read_rds_table(db_connector1, "legacy_users")
-
-# cleaner = DataCleaning()
-# clean_data = cleaner.clean_user_data(df)
-# print(type(clean_data))
-# # clean_data.info()
-# clean_data.head(10)
 
 
 
 
 
-# clean_data.info()
-# null_entries = clean_data[clean_data['join_date'].isnull()]
-# print(null_entries)
 
-# print(list(clean_data['phone_number']))
-# print(clean_data.isna().sum())
-# print(clean_data['country_code'].unique())
-# clean_data.head()
-
-# to fix: NULL vals, date errors, incorrect info and rows with wrong info?
-# first and last: no numbers, first letter capitalised
-# dob ideal: yyyy-mm-dd
-# email ideal: str@str.str
-# address ideal: replace "\n" with ", "?
-# country code: no numbers
-# phone number ideal: 

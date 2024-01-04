@@ -17,9 +17,17 @@ class DataExtractor():
 
         return table_dataframe
     
-# db_connector1 = utils.DatabaseConnector()
-# extractor1 = DataExtractor()
-# df = extractor1.read_rds_table(db_connector1, "legacy_users")
-# print(df.head(100))
-# print(df.info())
-# print(df.isna().mean() * 100)
+
+    def retrieve_pdf_data(self, url):
+        import tabula
+        dataframes = tabula.read_pdf(url, pages="all", stream=True)
+        df = pd.concat(dataframes, ignore_index=True)
+
+        return df
+    
+    
+# pdf_url = "https://data-handling-public.s3.eu-west-1.amazonaws.com/card_details.pdf"
+
+# ext1 = DataExtractor()
+# card_df = ext1.retrieve_pdf_data(pdf_url)
+# card_df.head(40)
