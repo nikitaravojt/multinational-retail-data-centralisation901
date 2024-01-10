@@ -268,7 +268,58 @@ class DataCleaning():
         return df
 
 
+    def clean_store_data(self, df):
+        """ Cleans the store data as follows.
+        1. 'lat' col is dropped, since it is empty.
+        2. Address col is cleaned using the previously-
+        defined __address_cleaning method.
+        3. Longitude, Latitude and Staff Numbers are cleaned 
+        using pd.to_numeric(), which sets all non-numerical 
+        entries to NaN.
+        4. Locality is cleaned using __name_cleaning method.
+        All valid entries are then capitalised.
+        5. Store Code is cleaned using a regex which matches
+        to the valid store code pattern.
+        6. Opening Date is cleaned using __date_cleaning method.
+        7. Country code is cleaned using __country_code_cleaning.
+        8. Store Type and Continent entries are only valid if 
+        they are contained in their validity lists.
+        9. Finally, all exact duplicates are removed, all NULL
+        values are replaced with np.nan.
+        """
+        df = df.drop(columns=['lat'])
 
+        df['address'] = df.apply(self.__address_cleaning, axis=1)
+        df['longitude'] = pd.to_numeric(df["longitude"], errors="coerce")
+        df = self.__name_cleaning(df, target_col='locality')
+        df['locality'] = df['locality'].str.title()
+        
+        store_code_regex = re.compile(r'^[A-Z]{2,3}-[0-9A-Z]{8}$')
+        df['store_code'] = df["store_code"].apply(lambda x: x if pd.notna(x) \
+                                    and bool(store_code_regex.match(str(x))) else np.nan)
+
+        df['staff_numbers'] = pd.to_numeric(df['staff_numbers'], errors='coerce')
+        df['staff_numbers'] = df['staff_numbers'].astype('Int64')
+
+        df = self.__date_cleaning(df, target_col='opening_date', date_format="%Y-%m-%d")
+
+        valid_store_types = ["Web Portal", "Local", "Super Store", "Mall Kiosk", "Outlet"]
+        df["store_type"] = df["store_type"].apply(\
+                lambda x: x.strip() if str(x).strip() in valid_store_types else np.nan)
+        
+        df['latitude'] = pd.to_numeric(df["latitude"], errors="coerce")
+
+        df['country_code'] = df.apply(self.__country_code_cleaning, axis=1)
+
+        valid_continents = ["Europe", "America"]
+        df["continent"] = df["continent"].apply(\
+                lambda x: x.strip() if str(x).strip() in valid_continents else np.nan)
+        
+        df = df.drop_duplicates() # remove any exact duplicates
+        df = df.fillna(np.nan)
+        df.replace('NULL', np.nan, inplace=True)
+
+        return df
 
 
 
