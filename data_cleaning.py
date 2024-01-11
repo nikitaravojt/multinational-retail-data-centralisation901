@@ -160,7 +160,18 @@ class DataCleaning():
 
         return number
 
-
+    def __regex_matcher(entry, regex):
+        match = re.match(regex, entry)
+        if match:
+            return entry
+        else:
+            return np.nan
+        
+    def __in_list(entry, target_list):
+        if entry in target_list:
+            return entry
+        else:
+            return np.nan
 
 
     def clean_user_data(self, df):
@@ -322,8 +333,106 @@ class DataCleaning():
         return df
 
     
-    def convert_product_weights(self, df):
-        pass
+    def __convert_product_weights(df, target_col):
+        """
+        """
+
+        def weights_validation(weight):
+            weight = str(weight)
+            match = re.match(r'(?:(\d+)\s*x\s*)?([\d.]+)\s*([a-zA-Z]+)', weight)
+            if match:
+                multiplier, value, unit = match.groups()
+                multiplier = int(multiplier) if multiplier else 1
+                value = float(value)
+
+                if unit == "kg":
+                    return multiplier * value
+                elif unit == "g" or unit == "ml":
+                    return multiplier * (value / 1000)
+                elif unit == "oz":
+                    return multiplier * (value * 0.0283495)  # 1 oz = 0.0283495 kg
+                else:
+                    return np.nan
+            else:
+                return np.nan
+        
+        df[target_col] = df[target_col].astype(str).apply(weights_validation)
+
+        return df
 
 
+    def clean_products_data(self, df):
+            
+        def clean_removed(entry):
+            if entry == "Still_avaliable" or entry == "Still_available":
+                return False
+            elif entry == "Removed":
+                return True
+            else:
+                return np.nan
 
+        # Required regex
+        product_price_regex = r'^£\d+\.\d{2}$'
+        uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        product_code_regex = r'^[A-Za-z]\d{1,2}-\d+[a-zA-Z]?$'
+            
+        # Validating and cleaning individual columns
+        df["product_price"] = df["product_price"].astype(str).apply(self.__regex_matcher, args=(product_price_regex, ))
+        df = self.__convert_product_weights(df, "weight")
+        df["category"] = df["category"].astype(str).apply(self.__in_list, \
+                         args=(['toys-and-games','sports-and-leisure','pets',\
+                         'homeware','health-and-beauty','food-and-drink','diy'], ))
+        df['EAN'] = df['EAN'].astype(str).apply(lambda x: x if x.isdigit() else np.nan)
+        df = self.__date_cleaning(df, target_col='date_added', date_format="%Y-%m-%d")
+        df['uuid'] = df['uuid'].astype(str).apply(self.__regex_matcher, \
+                                args=(uuid_regex, ))
+        df['removed'] = df['removed'].astype(str).apply(clean_removed)
+        df['product_code'] = df['product_code'].astype(str).apply(self.__regex_matcher, \
+                                                args=(product_code_regex, ))
+        
+        df = df.drop_duplicates() # remove any exact duplicates
+        df = df.fillna(np.nan)
+        df.replace('NULL', np.nan, inplace=True)
+            
+        return df
+
+
+    def clean_orders_table(self, df):
+        """
+        """
+        orders_drop_cols = ["first_name", "last_name", "1", "index", "level_0"]
+
+        # Check if all columns exist before dropping
+        if all(col in df.columns for col in orders_drop_cols):
+            df = df.drop(columns=orders_drop_cols)
+            print("Columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")
+
+        df = df.reindex()
+        
+        return df
+
+
+    def clean_date_events(self, df):
+        """
+        """
+        # Required regex
+        timestamp_regex = r'^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$'
+        year_regex = r'^(19\d{2}|20\d{2})$'
+        date_uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+
+        # Cleaning ops
+        df["timestamp"] = df["timestamp"].astype(str).apply(self.__regex_matcher, args=(timestamp_regex, ))
+        df['month'] = df['month'].astype(str).apply(lambda x: x if x.isdigit() and 1 <= float(x) <= 12 else np.nan)
+        df['day'] = df['day'].astype(str).apply(lambda x: x if x.isdigit() and 1 <= float(x) <= 31 else np.nan)
+        df["year"] = df["year"].astype(str).apply(self.__regex_matcher, args=(year_regex, ))
+        df["time_period"] = df["time_period"].astype(str).apply(self.__in_list, \
+                            args=(["Evening", "Morning", "Midday", "Late_Hours"], ))
+        df["date_uuid"] = df["date_uuid"].astype(str).apply(self.__regex_matcher, args=(date_uuid_regex, ))
+
+        df = df.drop_duplicates() # remove any exact duplicates
+        df = df.fillna(np.nan)
+        df.replace('NULL', np.nan, inplace=True)
+
+        return df
