@@ -321,7 +321,9 @@ class DataCleaning():
 
         return df
 
-
+    
+    def convert_product_weights(self, df):
+        pass
 
 
 

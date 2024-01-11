@@ -55,6 +55,27 @@ class DataExtractor():
 
         store_df = pd.DataFrame(stores_list)
         return store_df
+    
+
+    def extract_from_s3(self, uri):
+        import boto3, io
+
+        uri = uri[5:] # Remove the 's3://' prefix
+        bucket_name, obj_key = uri.split('/', 1) # strip
+
+        s3 = boto3.client('s3')
+        file = s3.get_object(Bucket=bucket_name, Key=obj_key)
+        file = file['Body'].read()
+        bytes_io = io.BytesIO(file)
+        df = pd.read_csv(bytes_io)
+
+        return df
+
+
+
+# ext1 = DataExtractor()
+# test_df = ext1.extract_from_s3(uri='s3://data-handling-public/products.csv')
+# print(type(test_df))
 
 
 # num_of_stores_header = {'x-api-key': "yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX"}
