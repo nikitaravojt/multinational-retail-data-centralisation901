@@ -7,15 +7,25 @@ import re
 
 class DataCleaning():
 
-    """Methods named with preceding double underscores are
-    marked as private and used to clean a target column in the
-    dataframe. They are called by the clean_user_data() method
-    to clean each column in succession, by marking the invalid
-    data entries as np.nan.
+    """Data cleaning class to clean pandas dataframes for
+    the AiCore MRDC project.
+    
+    Methods named with preceding double underscores are
+    marked as private and used to clean a target column in a
+    given dataframe. The class contains methods which clean
+    company customer, card, store, products, orders and date
+    events data. All methods are unique to this specific 
+    dataset and their dataframe columns.
     """
 
     def __name_cleaning(self, df, target_col):
-        """
+        """Method to clean customer first/last names. A regex
+        is used to match entries to a alphabetical word
+        where capitalised letters, lowercase letters and German
+        umlauts are allowed. Hyphens, dots, single quotes and 
+        spaces are allowed. Entry matches are kept in dataframe
+        and are capitalised, non-matches are set to np.nan (NaN).
+        Cleaned dataframe is returned.
         """
         valid_name_pattern = re.compile(r'^[A-Za-zÄäÖöÜüßé.\'\s-]+$')
 
@@ -26,7 +36,14 @@ class DataCleaning():
 
 
     def __email_cleaning(self, df, target_col):
-        """
+        """Method to clean dataframe email entries. A regex
+        is used to match for a str1@str2.str3 pattern. str1 
+        and str2 allows for letters, numbers, dots and hyphens. 
+        str3 allows only for two or more letters (domain).
+        Method also replaces some rogue entries containing '@@' 
+        with '@'. Entry matches are kept in dataframe
+        and are capitalised, non-matches are set to np.nan (NaN).
+        Cleaned dataframe is returned.
         """
         # Some entries are valid but mistakenly use @@ instead of @:
         df[target_col] = df[target_col].str.replace(r'@@', '@', regex=True)
@@ -41,7 +58,11 @@ class DataCleaning():
 
 
     def __country_cleaning(self, df, target_col):
-        """
+        """Method to clean 'country' column in a given 
+        dataframe. If entry matches to allowed countries 
+        in valid_countries, the entry is kept. Otherwise,
+        entry is set to np.nan. Cleaned dataframe is 
+        returned.
         """
         valid_countries = ['Germany', 'United Kingdom', 'United States']
 
@@ -52,11 +73,12 @@ class DataCleaning():
 
 
     def __address_cleaning(self, row):
-        """Private method to clean customer addresses. 
-        1. All valid entries have address lines separated by
-        a \n character. Replace all these with ", ".
-        2. If an entry does not have a comma anywhere in the
-        string, as a valid address would, then it is invalidated.   
+        """Method to clean customer addresses. All valid entries 
+        have address lines separated by a \n character, which are
+        replaced with ", ". If an entry does not have a comma anywhere 
+        in the string, as a valid address would, then it is invalidated. 
+        Invalid entries are set to np.nan. Valid entries are unchanged. 
+        Return: cleaned address.  
         """
         address = row['address']
         address = re.sub(r'\n', ', ', address)
@@ -67,7 +89,12 @@ class DataCleaning():
     
 
     def __date_cleaning(self, df, target_col, date_format):
-        """
+        """Method to clean date patterns using dateutil.parser
+        class. Parser is applied to the target_col and all
+        invalid date entries are converted to pd.NaT (Not-a-Time
+        type). The modified column is converted to a pandas
+        datetime type. 
+        Return: cleaned dataframe.
         """
         from dateutil.parser import parse
 
@@ -88,8 +115,10 @@ class DataCleaning():
 
 
     def __country_code_cleaning(self, row):
-        """Private method to clean country codes.
+        """Method to clean country codes.
         Codes must be 2 characters long and only contain letters.
+        Invalid entries set to np.nan, otherwise remain 
+        unchanged. Cleaned code is returned.
         """
         code = row['country_code']
         if len(code) != 2 or not code.isalpha():
@@ -99,7 +128,7 @@ class DataCleaning():
 
 
     def __phone_number_cleaning(self, row):
-        """Private method to clean all phone numbers, as follows:
+        """Method to clean GB, US and DE phone numbers, as follows:
         1. Check for pre-existing +1, +44, +49 or 001 leading codes and
         adjust country_code accordingly.
         2. Remove leading codes if present to begin cleaning.
@@ -110,6 +139,7 @@ class DataCleaning():
         7. Remove all whitespaces.
         8. Check that number length is 12 or 13 for UK and DE numbers, 
         and that it is 12 for US numbers (this includes the country code).
+        Return cleaned phone number.
         """
 
         number = str(row['phone_number'])
@@ -161,6 +191,11 @@ class DataCleaning():
         return number
 
     def __regex_matcher(entry, regex):
+        """Helper method, takes an entry
+        and matches it to a regex. If entry
+        matches to regex pattern, it is returned,
+        otherwise np.nan is returned."""
+
         match = re.match(regex, entry)
         if match:
             return entry
@@ -168,6 +203,11 @@ class DataCleaning():
             return np.nan
         
     def __in_list(entry, target_list):
+        """Helper method, takes an entry
+        and checks if it is contained within
+        target_list. If true, entry is returned,
+        otherwise np.nan is returned."""
+
         if entry in target_list:
             return entry
         else:
@@ -175,12 +215,13 @@ class DataCleaning():
 
 
     def clean_user_data(self, df):
-
-        """Workflow:
-        -One by one, mark all invalid data entries from all cols as np.nan.
-        -Each of these will be in its own private method.
-        -Create final method to call each of these cleaning methods one by one,
-        finishing by purging any and all rows containing np.nan. Return cleaned_df.
+        """Method to clean user (customer) data. Helper
+        methods are combined to parse and clean entries from
+        every column in the dataframe. After cleaning, all
+        exact duplicates are dropped and the invalid 
+        entries (e.g., 'NULL' {str}) are standardised 
+        (set to np.nan).
+        Cleaned dataframe returned.
         """
         df['country_code'] = df.apply(self.__country_code_cleaning, axis=1)
         df['phone_number'] = df.apply(self.__phone_number_cleaning, axis=1)
@@ -201,17 +242,20 @@ class DataCleaning():
 
 
     def clean_card_data(self, df):
-        """ Workflow:
+        """Method to clean customer card data, as follows:
         - Remove any df cols that are not: card_number, expiry_date,
         card_provider or date_payment_confirmed.
         - Clean card_provider. Invalidate all entries that are not in 
         provider list.
         - Cast all card_number entries to str type.
-        - Clean card_number row-wise (using .apply()). 
-        - Clean expiry_date.
+        - Clean card_number row-wise. Conditions for entry to be valid:
+        must be digits only, associated provider must be in the provider
+        list, and length of number must match to the provider in
+        provider_card_lengths.  
+        - Clean expiry_date. Regex applied here to ensure mm/yy format.
         - Clean date_payment_confirmed using __date_cleaning() helper. 
-        
-        Replace all NULLs with np.nan. Execute df.fillna(np.nan) also.
+        - Remove exact duplicates and standardise invalid entries.
+        Return: cleaned df.
         """
         provider_card_lengths = {
             'Diners Club / Carte Blanche': 14,
@@ -262,7 +306,6 @@ class DataCleaning():
 
             return df
 
-
         # Ops
         df = df[['card_number', 'expiry_date', 'card_provider', 'date_payment_confirmed']]
         df['card_number'] = df['card_number'].astype(str)
@@ -280,8 +323,8 @@ class DataCleaning():
 
 
     def clean_store_data(self, df):
-        """ Cleans the store data as follows.
-        1. 'lat' col is dropped, since it is empty.
+        """Method to clean the store data, as follows.
+        1. 'lat' col is dropped, since it's empty.
         2. Address col is cleaned using the previously-
         defined __address_cleaning method.
         3. Longitude, Latitude and Staff Numbers are cleaned 
@@ -297,6 +340,7 @@ class DataCleaning():
         they are contained in their validity lists.
         9. Finally, all exact duplicates are removed, all NULL
         values are replaced with np.nan.
+        Return: cleaned df.
         """
         df = df.drop(columns=['lat'])
 
