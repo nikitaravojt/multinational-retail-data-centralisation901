@@ -1,1 +1,5 @@
 db_credentials.yaml
+regex_testing.py
+val_testing.py
+displaying_df.ipynb
+store_api_testing.ipynb
