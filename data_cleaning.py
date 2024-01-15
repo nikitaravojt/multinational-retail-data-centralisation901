@@ -378,7 +378,8 @@ class DataCleaning():
 
     
     def __convert_product_weights(df, target_col):
-        """
+        """Hepler method to clean and validate the "weight" column
+        of the products dataframe. 
         """
 
         def weights_validation(weight):
@@ -406,7 +407,8 @@ class DataCleaning():
 
 
     def clean_products_data(self, df):
-            
+        """Method to clean the products dataframe. 
+        """
         def clean_removed(entry):
             if entry == "Still_avaliable" or entry == "Still_available":
                 return False
@@ -442,7 +444,10 @@ class DataCleaning():
 
 
     def clean_orders_table(self, df):
-        """
+        """Method to clean and validate the orders table.
+        Columns defined in orders_drop_cols are dropped and
+        the table is reindexed.
+        Return: cleaned dataframe.
         """
         orders_drop_cols = ["first_name", "last_name", "1", "index", "level_0"]
 
@@ -459,7 +464,8 @@ class DataCleaning():
 
 
     def clean_date_events(self, df):
-        """
+        """Method to clean and validate the date events dataframe.
+        Return: cleaned dataframe.
         """
         # Required regex
         timestamp_regex = r'^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$'
