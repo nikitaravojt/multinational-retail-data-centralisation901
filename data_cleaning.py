@@ -190,7 +190,7 @@ class DataCleaning():
 
         return number
 
-    def __regex_matcher(entry, regex):
+    def __regex_matcher(self, entry, regex):
         """Helper method, takes an entry
         and matches it to a regex. If entry
         matches to regex pattern, it is returned,
@@ -202,7 +202,7 @@ class DataCleaning():
         else:
             return np.nan
         
-    def __in_list(entry, target_list):
+    def __in_list(self, entry, target_list):
         """Helper method, takes an entry
         and checks if it is contained within
         target_list. If true, entry is returned,
@@ -223,6 +223,16 @@ class DataCleaning():
         (set to np.nan).
         Cleaned dataframe returned.
         """
+        uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        spam_entry_regex = r'^(?![A-Za-z0-9]{10}$).*$' # negative assert, as this is the pattern for invalid entries
+
+        cols_to_drop = ['index']
+        if all(col in df.columns for col in cols_to_drop):
+            df = df.drop(columns=cols_to_drop)
+            print("Columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")        
+
         df['country_code'] = df.apply(self.__country_code_cleaning, axis=1)
         df['phone_number'] = df.apply(self.__phone_number_cleaning, axis=1)
         df['address'] = df.apply(self.__address_cleaning, axis=1)
@@ -232,11 +242,19 @@ class DataCleaning():
         df = self.__name_cleaning(df, target_col='last_name')
         df = self.__email_cleaning(df, target_col='email_address')
         df = self.__country_cleaning(df, target_col='country')
+        df["company"] = df["company"].astype(str).apply(self.__regex_matcher, \
+                                                        args=(spam_entry_regex, ))
+        df['user_uuid'] = df['user_uuid'].astype(str).apply(self.__regex_matcher, \
+                                args=(uuid_regex, ))
         df = df.drop_duplicates() # remove any exact duplicates
 
         # Standardise all invalid entries (make them all np.nan)
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.replace('Null', np.nan, inplace=True)
+        df.replace('null', np.nan, inplace=True)
+        df.dropna(inplace=True, how='all')
+        df.dropna(inplace=True, thresh=9)
 
         return df
 
@@ -279,15 +297,24 @@ class DataCleaning():
             else:
                 return np.nan
             
-        def __clean_card_number(row):
-            num = str(row['card_number'])
-            provider = str(row['card_provider'])
+        # def __clean_card_number_legacy(row):
+        #     num = str(row['card_number'])
+        #     provider = str(row['card_provider'])
 
-            if (provider in valid_providers) and \
-                (len(num) == provider_card_lengths[provider]) and \
-                (num.isdigit()):
+        #     if (provider in valid_providers) and \
+        #         (len(num) == provider_card_lengths[provider]) and \
+        #         (num.isdigit()):
+        #         return num
+        #     else:
+        #         return np.nan
+            
+        def __clean_card_number(row):
+            num = str(row)
+            num = num.replace("?", "")
+            if num.isnumeric():
                 return num
             else:
+                # print(num)
                 return np.nan
 
         def __clean_expiry_date(df, target_col):
@@ -311,13 +338,18 @@ class DataCleaning():
         df['card_number'] = df['card_number'].astype(str)
 
         df['card_provider'] = df.apply(__clean_card_provider, axis=1)
-        df['card_number'] = df.apply(__clean_card_number, axis=1)
+        # df['card_number'] = df.apply(__clean_card_number, axis=1)
+        df['card_number'] = df['card_number'].str.replace(r'\D+', '')
+        df['card_number'] = df['card_number'].str.replace('?', '')
         df = self.__date_cleaning(df, target_col='date_payment_confirmed', date_format="%Y-%m-%d")
         df = __clean_expiry_date(df, "expiry_date")
 
         df = df.drop_duplicates() # remove any exact duplicates
-        df = df.fillna(np.nan)
-        df.replace('NULL', np.nan, inplace=True)
+        # df = df.fillna(np.nan)
+        # df.replace('NULL', np.nan, inplace=True)
+        df.dropna(inplace=True)
+        # df.dropna(inplace=True, subset=['date_payment_confirmed'])
+        print(len(df))
 
         return df
 
@@ -342,7 +374,13 @@ class DataCleaning():
         values are replaced with np.nan.
         Return: cleaned df.
         """
-        df = df.drop(columns=['lat'])
+        cols_to_drop = ['lat', 'index']
+        if all(col in df.columns for col in cols_to_drop):
+            df = df.drop(columns=cols_to_drop)
+            print("Columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")
+
 
         df['address'] = df.apply(self.__address_cleaning, axis=1)
         df['longitude'] = pd.to_numeric(df["longitude"], errors="coerce")
@@ -373,11 +411,14 @@ class DataCleaning():
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.replace('Null', np.nan, inplace=True)
+        df.replace('null', np.nan, inplace=True)
+        df.dropna(inplace=True, how="all")
 
         return df
 
     
-    def __convert_product_weights(df, target_col):
+    def __convert_product_weights(self, df, target_col):
         """Hepler method to clean and validate the "weight" column
         of the products dataframe. 
         """
@@ -408,6 +449,15 @@ class DataCleaning():
 
     def clean_products_data(self, df):
         """Method to clean the products dataframe. 
+        For the product_name column, it is next to impossible to create
+        a generalised regex for cleaning the name of a product, as the 
+        valid entries are so unique and can be valid if the entry contains 
+        one or many words, numbers, hyphens etc. Therefore, spam entries
+        such as "LB3D71C025" or "9SX4G65YUX" were invalidated using a 
+        regex that matches to a 10-character str containing numbers and/or 
+        all uppercase chars. This, of course, does not invalidate spam entries 
+        that are not 10 characters long.
+        Return: cleaned df.
         """
         def clean_removed(entry):
             if entry == "Still_avaliable" or entry == "Still_available":
@@ -421,8 +471,19 @@ class DataCleaning():
         product_price_regex = r'^£\d+\.\d{2}$'
         uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         product_code_regex = r'^[A-Za-z]\d{1,2}-\d+[a-zA-Z]?$'
+        spam_entry_regex = r'^(?![A-Za-z0-9]{10}$).*$' # negative assert, as this is the pattern for invalid entries
+
+        # Drop empty col
+        cols_to_drop = ['Unnamed: 0']
+        if all(col in df.columns for col in cols_to_drop):
+            df = df.drop(columns=cols_to_drop)
+            print("Columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")
+
             
         # Validating and cleaning individual columns
+        df["product_name"] = df["product_name"].astype(str).apply(self.__regex_matcher, args=(spam_entry_regex, ))
         df["product_price"] = df["product_price"].astype(str).apply(self.__regex_matcher, args=(product_price_regex, ))
         df = self.__convert_product_weights(df, "weight")
         df["category"] = df["category"].astype(str).apply(self.__in_list, \
@@ -439,6 +500,8 @@ class DataCleaning():
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.replace('nan', np.nan, inplace=True)
+        df.dropna(inplace=True)
             
         return df
 
@@ -484,5 +547,6 @@ class DataCleaning():
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.dropna(inplace=True)
 
-        return df
+        return df   
