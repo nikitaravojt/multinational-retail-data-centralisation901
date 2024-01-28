@@ -30,8 +30,8 @@ class DataExtractor():
         data from the file and returns it as a pandas dataframe."""
 
         import tabula
-        dataframes = tabula.read_pdf(url, pages="all", stream=True)
-        df = pd.concat(dataframes, ignore_index=True)
+        dataframes = tabula.read_pdf(url, pages="all")
+        df = pd.concat(dataframes, ignore_index=True, axis=0)
 
         return df
     
