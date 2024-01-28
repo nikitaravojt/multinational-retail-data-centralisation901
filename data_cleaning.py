@@ -452,6 +452,7 @@ class DataCleaning():
         regex that matches to a 10-character str containing numbers and/or 
         all uppercase chars. This, of course, does not invalidate spam entries 
         that are not 10 characters long.
+        
         Return: cleaned df.
         """
         def clean_removed(entry):

@@ -1,4 +1,3 @@
-
 import pandas as pd
 import database_utils as utils
 
@@ -34,7 +33,6 @@ class DataExtractor():
         df = pd.concat(dataframes, ignore_index=True, axis=0)
 
         return df
-    
     
     def list_number_of_stores(self, endpoint, header_dict):
         """Sends a HTTP GET request to a given endpoint using
@@ -77,7 +75,6 @@ class DataExtractor():
 
         return store_df
     
-
     def extract_from_s3(self, uri):
         """Takes an AWS S3 bucket URI, strips it into
         the bucket_name and obj_key and initialises 
@@ -95,25 +92,3 @@ class DataExtractor():
         df = pd.read_csv(bytes_io)
 
         return df
-
-
-
-# ext1 = DataExtractor()
-# test_df = ext1.extract_from_s3(uri='s3://data-handling-public/products.csv')
-# print(type(test_df))
-
-
-# num_of_stores_header = {'x-api-key': "yFBQbwXe9J3sd6zWVAMrK6lcxxr0q1lr2PT6DDMX"}
-# store_endpoint = "https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/store_details/"
-# num_of_stores_endpoint = "https://aqj7u5id95.execute-api.eu-west-1.amazonaws.com/prod/number_stores"
-
-# ext1 = DataExtractor()
-# num_stores = ext1.list_number_of_stores(endpoint=num_of_stores_endpoint, header_dict=num_of_stores_header)
-
-# import requests
-# resp = requests.get(store_endpoint+'0', headers=num_of_stores_header).json()
-# print(resp)
-# print(type(resp))
-
-
-
