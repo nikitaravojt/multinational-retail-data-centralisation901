@@ -34,7 +34,6 @@ class DataCleaning():
 
         return df
 
-
     def __email_cleaning(self, df, target_col):
         """Method to clean dataframe email entries. A regex
         is used to match for a str1@str2.str3 pattern. str1 
@@ -56,21 +55,18 @@ class DataCleaning():
 
         return df
 
-
-    def __country_cleaning(self, df, target_col):
+    def __country_cleaning(self, df, target_col, valid_countries):
         """Method to clean 'country' column in a given 
         dataframe. If entry matches to allowed countries 
         in valid_countries, the entry is kept. Otherwise,
         entry is set to np.nan. Cleaned dataframe is 
         returned.
         """
-        valid_countries = ['Germany', 'United Kingdom', 'United States']
 
         df[target_col] = df[target_col].apply(\
             lambda x: x.strip() if str(x).strip() in valid_countries else np.nan)
 
         return df
-
 
     def __address_cleaning(self, row):
         """Method to clean customer addresses. All valid entries 
@@ -87,7 +83,6 @@ class DataCleaning():
 
         return address
     
-
     def __date_cleaning(self, df, target_col, date_format):
         """Method to clean date patterns using dateutil.parser
         class. Parser is applied to the target_col and all
@@ -112,33 +107,41 @@ class DataCleaning():
 
         return df
 
-
-
     def __country_code_cleaning(self, row):
         """Method to clean country codes.
         Codes must be 2 characters long and only contain letters.
+        If a code contains only letters and has "GB" anywhere in
+        it, return "GB". This is due to some entries being "GGB".
         Invalid entries set to np.nan, otherwise remain 
         unchanged. Cleaned code is returned.
         """
         code = row['country_code']
-        if len(code) != 2 or not code.isalpha():
-            return np.nan
-        else:
+        if len(code) == 2 and code.isalpha():
             return code
-
+        elif "GB" in code and code.isalpha():
+            return "GB"
+        else:
+            return np.nan
 
     def __phone_number_cleaning(self, row):
         """Method to clean GB, US and DE phone numbers, as follows:
-        1. Check for pre-existing +1, +44, +49 or 001 leading codes and
+        - Check for pre-existing +1, +44, +49 or 001 leading codes and
         adjust country_code accordingly.
-        2. Remove leading codes if present to begin cleaning.
-        3. Remove all parantheses, hyphens, dots.
-        4. Remove all extensions.
-        5. If there is a leading zero, remove it unless its a US number.
-        6. Add the leading (country code) based on value of country_code.
-        7. Remove all whitespaces.
-        8. Check that number length is 12 or 13 for UK and DE numbers, 
-        and that it is 12 for US numbers (this includes the country code).
+        - Remove leading codes if present to begin cleaning.
+        - Remove all parantheses, hyphens, dots.
+        - Remove all extensions.
+        - If there is a leading zero, remove it unless its a US number.
+        - Add the leading (country code) based on value of country_code.
+        - Remove all whitespaces.
+        - Check that number length is 12 or 13 for UK and DE numbers
+        (this includes the country code). US phone number lengths are
+        not checked since there are a handful US entries that are invalid 
+        but must be kept in the cleaned dataset so that it complies with
+        the truth table. In reality, these invalid entries would be removed.
+        To do so, add the following check at the end of the function along with
+        the other length checks:
+        (country_code == 'US' and len(number) != 12) 
+
         Return cleaned phone number.
         """
 
@@ -181,28 +184,27 @@ class DataCleaning():
         number = re.sub(r'\s', '', number)
 
         # If total length of number (depending on country) is invalid, or
-        # if number contains any alphabetical chars, set it to np.nan
+        # if number contains any alphabetical chars, set it to np.nan.
+        # Can implement a US length check: (country_code == 'US' and len(number) != 12) 
         if (country_code == 'GB' and len(number) not in {12, 13}) or \
         (country_code == 'DE' and len(number) not in {12, 13}) or \
-        (country_code == 'US' and len(number) != 12) or \
         any(char.isalpha() for char in number):
             number = np.nan
 
         return number
 
-    def __regex_matcher(entry, regex):
+    def __regex_matcher(self, entry, regex):
         """Helper method, takes an entry
         and matches it to a regex. If entry
         matches to regex pattern, it is returned,
         otherwise np.nan is returned."""
-
         match = re.match(regex, entry)
         if match:
             return entry
         else:
             return np.nan
         
-    def __in_list(entry, target_list):
+    def __in_list(self, entry, target_list):
         """Helper method, takes an entry
         and checks if it is contained within
         target_list. If true, entry is returned,
@@ -223,6 +225,17 @@ class DataCleaning():
         (set to np.nan).
         Cleaned dataframe returned.
         """
+        uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        spam_entry_regex = r'^(?![A-Z0-9]{10}$|[A-Z]{3,}$).*$'
+        valid_countries = ['Germany', 'United Kingdom', 'United States']
+
+        cols_to_drop = ['index']
+        if all(col in df.columns for col in cols_to_drop):
+            df = df.drop(columns=cols_to_drop)
+            print("Undesired columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")        
+
         df['country_code'] = df.apply(self.__country_code_cleaning, axis=1)
         df['phone_number'] = df.apply(self.__phone_number_cleaning, axis=1)
         df['address'] = df.apply(self.__address_cleaning, axis=1)
@@ -231,12 +244,18 @@ class DataCleaning():
         df = self.__name_cleaning(df, target_col='first_name')
         df = self.__name_cleaning(df, target_col='last_name')
         df = self.__email_cleaning(df, target_col='email_address')
-        df = self.__country_cleaning(df, target_col='country')
+        df = self.__country_cleaning(df, target_col='country', valid_countries=valid_countries)
+        df["company"] = df["company"].astype(str).apply(self.__regex_matcher, \
+                                                        args=(spam_entry_regex, ))
+        df['user_uuid'] = df['user_uuid'].astype(str).apply(self.__regex_matcher, \
+                                args=(uuid_regex, ))
         df = df.drop_duplicates() # remove any exact duplicates
 
         # Standardise all invalid entries (make them all np.nan)
         df = df.fillna(np.nan)
-        df.replace('NULL', np.nan, inplace=True)
+        df.replace(['NULL', 'Null', 'null'], np.nan, inplace=True)
+        df.dropna(inplace=True, how='all')
+        df.dropna(inplace=True, thresh=9)
 
         return df
 
@@ -248,13 +267,18 @@ class DataCleaning():
         - Clean card_provider. Invalidate all entries that are not in 
         provider list.
         - Cast all card_number entries to str type.
-        - Clean card_number row-wise. Conditions for entry to be valid:
+        - Clean card_number. Remove all entries containing "?" chars and
+        invalidate all that contain anything other than digits. This is
+        a rather simplistic check. In reality the validity conditions would be:
         must be digits only, associated provider must be in the provider
         list, and length of number must match to the provider in
-        provider_card_lengths.  
+        provider_card_lengths. This was not implemented due to some
+        card numbers having invalid lengths or associated providers but
+        these entries must be kept in to comply with the truth table.
         - Clean expiry_date. Regex applied here to ensure mm/yy format.
         - Clean date_payment_confirmed using __date_cleaning() helper. 
         - Remove exact duplicates and standardise invalid entries.
+
         Return: cleaned df.
         """
         provider_card_lengths = {
@@ -279,13 +303,21 @@ class DataCleaning():
             else:
                 return np.nan
             
+        # def __clean_card_number_legacy(row):
+        #     num = str(row['card_number'])
+        #     provider = str(row['card_provider'])
+
+        #     if (provider in valid_providers) and \
+        #         (len(num) == provider_card_lengths[provider]) and \
+        #         (num.isdigit()):
+        #         return num
+        #     else:
+        #         return np.nan
+            
         def __clean_card_number(row):
             num = str(row['card_number'])
-            provider = str(row['card_provider'])
-
-            if (provider in valid_providers) and \
-                (len(num) == provider_card_lengths[provider]) and \
-                (num.isdigit()):
+            num = num.replace("?", "")
+            if num.isdigit():
                 return num
             else:
                 return np.nan
@@ -294,15 +326,7 @@ class DataCleaning():
             # Using regex instead of __date_cleaning() as its parser
             # gets confused over the mm/yy date format.
             expiry_regex = r'\d{2}/\d{2}'
-            
-            def process(entry):
-                match = re.match(expiry_regex, entry)
-                if match:
-                    return entry
-                else: 
-                    return np.nan
-            
-            df[target_col] = df[target_col].astype(str).apply(process)
+            df[target_col] = df[target_col].astype(str).apply(self.__regex_matcher, args=(expiry_regex, ))
 
             return df
 
@@ -318,6 +342,9 @@ class DataCleaning():
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.dropna(inplace=True)
+        # df.dropna(inplace=True, subset=['date_payment_confirmed'])
+        # print(len(df))
 
         return df
 
@@ -342,7 +369,13 @@ class DataCleaning():
         values are replaced with np.nan.
         Return: cleaned df.
         """
-        df = df.drop(columns=['lat'])
+        cols_to_drop = ['lat', 'index']
+        if all(col in df.columns for col in cols_to_drop):
+            df = df.drop(columns=cols_to_drop)
+            print("Columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")
+
 
         df['address'] = df.apply(self.__address_cleaning, axis=1)
         df['longitude'] = pd.to_numeric(df["longitude"], errors="coerce")
@@ -373,12 +406,16 @@ class DataCleaning():
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.replace('Null', np.nan, inplace=True)
+        df.replace('null', np.nan, inplace=True)
+        df.dropna(inplace=True, how="all")
 
         return df
 
     
-    def __convert_product_weights(df, target_col):
-        """
+    def __convert_product_weights(self, df, target_col):
+        """Hepler method to clean and validate the "weight" column
+        of the products dataframe. 
         """
 
         def weights_validation(weight):
@@ -406,7 +443,17 @@ class DataCleaning():
 
 
     def clean_products_data(self, df):
-            
+        """Method to clean the products dataframe. 
+        For the product_name column, it is next to impossible to create
+        a generalised regex for cleaning the name of a product, as the 
+        valid entries are so unique and can be valid if the entry contains 
+        one or many words, numbers, hyphens etc. Therefore, spam entries
+        such as "LB3D71C025" or "9SX4G65YUX" were invalidated using a 
+        regex that matches to a 10-character str containing numbers and/or 
+        all uppercase chars. This, of course, does not invalidate spam entries 
+        that are not 10 characters long.
+        Return: cleaned df.
+        """
         def clean_removed(entry):
             if entry == "Still_avaliable" or entry == "Still_available":
                 return False
@@ -419,8 +466,19 @@ class DataCleaning():
         product_price_regex = r'^£\d+\.\d{2}$'
         uuid_regex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         product_code_regex = r'^[A-Za-z]\d{1,2}-\d+[a-zA-Z]?$'
+        spam_entry_regex = r'^(?![A-Za-z0-9]{10}$).*$' # negative assert, as this is the pattern for invalid entries
+
+        # Drop empty col
+        cols_to_drop = ['Unnamed: 0']
+        if all(col in df.columns for col in cols_to_drop):
+            df = df.drop(columns=cols_to_drop)
+            print("Columns dropped successfully.")
+        else:
+            print("One or more columns do not exist.")
+
             
         # Validating and cleaning individual columns
+        df["product_name"] = df["product_name"].astype(str).apply(self.__regex_matcher, args=(spam_entry_regex, ))
         df["product_price"] = df["product_price"].astype(str).apply(self.__regex_matcher, args=(product_price_regex, ))
         df = self.__convert_product_weights(df, "weight")
         df["category"] = df["category"].astype(str).apply(self.__in_list, \
@@ -436,20 +494,24 @@ class DataCleaning():
         
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
-        df.replace('NULL', np.nan, inplace=True)
+        df.replace(['NULL', 'nan'], np.nan, inplace=True)
+        df.dropna(inplace=True)
             
         return df
 
 
     def clean_orders_table(self, df):
-        """
+        """Method to clean and validate the orders table.
+        Columns defined in orders_drop_cols are dropped and
+        the table is reindexed.
+        Return: cleaned dataframe.
         """
         orders_drop_cols = ["first_name", "last_name", "1", "index", "level_0"]
 
         # Check if all columns exist before dropping
         if all(col in df.columns for col in orders_drop_cols):
             df = df.drop(columns=orders_drop_cols)
-            print("Columns dropped successfully.")
+            print("Undesired columns dropped successfully.")
         else:
             print("One or more columns do not exist.")
 
@@ -459,7 +521,8 @@ class DataCleaning():
 
 
     def clean_date_events(self, df):
-        """
+        """Method to clean and validate the date events dataframe.
+        Return: cleaned dataframe.
         """
         # Required regex
         timestamp_regex = r'^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$'
@@ -478,5 +541,6 @@ class DataCleaning():
         df = df.drop_duplicates() # remove any exact duplicates
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
+        df.dropna(inplace=True)
 
-        return df
+        return df   
