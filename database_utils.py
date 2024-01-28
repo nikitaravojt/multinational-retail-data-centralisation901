@@ -20,7 +20,7 @@ class DatabaseConnector():
     def init_db_engine(self, creds_filepath):
         """Calls the read_db_creds() method, given a 
         creds_filepath. Initialises a sqlalchemy engine
-        to establish a connection to the database using 
+        to establish a connection to the remote database using 
         the provided credentials. Returns engine object."""
         creds = self.read_db_creds(creds_filepath)
         engine_url = ( 
@@ -43,6 +43,21 @@ class DatabaseConnector():
         conn.close()
 
         return table_names
+    
+    def connect_to_local_db(self, creds_filepath):
+        """Calls the read_db_creds() method, given a 
+        creds_filepath. Initialises a sqlalchemy engine
+        to establish a connection to the local database using 
+        the provided credentials. Returns engine object."""
+        creds = self.read_db_creds(creds_filepath)
+        engine_url = ( 
+            f'postgresql://{creds["LOCAL_USER"]}:'
+            f'{creds["LOCAL_PASSWORD"]}@{creds["LOCAL_HOST"]}:'
+            f'{creds["LOCAL_PORT"]}/{creds["LOCAL_DATABASE"]}'
+        )
+        engine = create_engine(engine_url)
+
+        return engine
 
     def upload_to_db(self, df, table_name, creds_filepath):
         """Calls read_db_creds() method to extract credentials
@@ -59,3 +74,13 @@ class DatabaseConnector():
         engine = create_engine(engine_url)
 
         df.to_sql(table_name, con=engine, if_exists='replace', index=False)
+
+    def execute_sql_file(self, engine, sql_filepath):
+        """Reads an SQL query file given its sql_filepath.
+        Executes the statements within the file given the 
+        target "engine"."""
+        with open(sql_filepath, 'r') as file:
+            sql_statements = file.read()
+
+        with engine.connect() as connection:
+            connection.execute(sql_statements)

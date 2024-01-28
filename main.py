@@ -61,3 +61,6 @@ upload_clean_products_table()
 upload_clean_stores_table()
 upload_clean_users_table()
 
+# Execute SQL data type casting, primary key generation and foreign key constraints
+local_db_engine = db_connector1.connect_to_local_db("db_credentials.yaml")
+db_connector1.execute_sql_file(local_db_engine, "constraint_queries.sql")
