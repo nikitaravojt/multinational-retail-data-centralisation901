@@ -63,7 +63,7 @@ The project contains the following files:
      and printed to terminal. 
   - main.py - initialises the utils, extraction and cleaning classes to automatically retrieve, clean and upload the
      datasets. Executes SQL queries defined in constraint_queries.sql to cast correct data types, add primary and
-     foreign key constraints. Executes the analytics.sql queries to output the tabulated query results to terminal.
+     foreign key constraints. Executes the analytics.sql queries and outputs the tabulated query results to terminal.
      Expects the "db_credentials.yaml" file to be already set up as outlined in the Usage section.
      Warning: running this file will automatically pull the data from remote (provided that your credentials are correct),
      clean the data and upload it to the specified localhost. This will overwrite any existing data on your local DB.
