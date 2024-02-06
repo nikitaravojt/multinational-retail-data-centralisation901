@@ -85,17 +85,6 @@ class DatabaseConnector():
         statements = sql_statements.split(';')
         response_array = [] # list containing response lists of entire SQL file
 
-        # with engine.connect() as connection:
-        #     for statement in statements:
-        #         if statement.strip():
-        #             query_response = connection.execute(text(statement)).fetchall()
-        #             query_response_dict = {}
-        #             for response in query_response:
-        #                 key, value = response
-        #                 query_response_dict[str(key)] = str(value)  
-
-        #             all_responses.append(query_response_dict)
-
         with engine.connect() as connection:
             for statement in statements:
                 if statement.strip():

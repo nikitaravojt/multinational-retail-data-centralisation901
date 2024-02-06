@@ -303,17 +303,6 @@ class DataCleaning():
             else:
                 return np.nan
             
-        # def __clean_card_number_legacy(row):
-        #     num = str(row['card_number'])
-        #     provider = str(row['card_provider'])
-
-        #     if (provider in valid_providers) and \
-        #         (len(num) == provider_card_lengths[provider]) and \
-        #         (num.isdigit()):
-        #         return num
-        #     else:
-        #         return np.nan
-            
         def __clean_card_number(row):
             num = str(row['card_number'])
             num = num.replace("?", "")
@@ -343,8 +332,6 @@ class DataCleaning():
         df = df.fillna(np.nan)
         df.replace('NULL', np.nan, inplace=True)
         df.dropna(inplace=True)
-        # df.dropna(inplace=True, subset=['date_payment_confirmed'])
-        # print(len(df))
 
         return df
 
