@@ -3,6 +3,7 @@ import data_extraction as ext
 import data_cleaning as clean
 import pandas as pd
 import requests
+from tabulate import tabulate
 
 
 db_connector1 = utils.DatabaseConnector()
@@ -54,7 +55,47 @@ def upload_clean_users_table():
     users_clean.info()
     db_connector1.upload_to_db(users_clean, "dim_users", "db_credentials.yaml")
 
-# Calls
+def analytics_queries(connector, engine, sql_filepath):
+    responses = connector.execute_sql_file(engine, sql_filepath, pull_response=True)
+    
+    # Store Origin
+    header = ["Country", "Total Number of Stores"]
+    print(tabulate(responses[0], headers=header, tablefmt="simple_outline", numalign="center", stralign='center'))
+
+    # Locality Ranking
+    header = ["Locality", "Total Number of Stores"]
+    print(tabulate(responses[1], headers=header, tablefmt="simple_outline", numalign="center", stralign='center'))
+
+    # Total sales by month
+    header = ["Total Sales", "Month"]
+    print(tabulate(responses[2], headers=header, tablefmt="simple_outline", numalign="center", stralign='center'))
+
+    # Online vs. Offline
+    header = ["No. of Sales", "Product Quantity (count)", "Location"]
+    print(tabulate(responses[3], headers=header, tablefmt="simple_outline", numalign="center", stralign='center'))
+
+    # Sales of different store types
+    header = ["Store Type", "Total Sales", "Percentage Total (%)"]
+    print(tabulate(responses[4], headers=header, tablefmt="simple_outline", numalign="center", stralign='center', floatfmt=".2f"))
+
+    # Best sales historically by year and month
+    header = ["Total Sales", "Year", "Month"]
+    print(tabulate(responses[5], headers=header, tablefmt="simple_outline", numalign="center", stralign='center', floatfmt=".2f"))
+
+    # Staff headcount by operating country
+    header = ["Total Staff", "Country Code"]
+    print(tabulate(responses[6], headers=header, tablefmt="simple_outline", numalign="center", stralign='center'))
+
+    # Best-selling German stores
+    header = ["Total Sales", "Store Type", "Country Code"]
+    print(tabulate(responses[7], headers=header, tablefmt="simple_outline", numalign="center", stralign='center', floatfmt=".2f"))
+
+    # Yearly averages of sale speed
+    header = ["Year", "Actual Time Taken"]
+    print(tabulate(responses[8], headers=header, tablefmt="simple_outline", numalign="center", stralign='center'))
+
+
+# Data cleaning
 clean_upload_card_table()
 upload_clean_date_times()
 upload_clean_products_table()
@@ -63,4 +104,7 @@ upload_clean_users_table()
 
 # Execute SQL data type casting, primary key generation and foreign key constraints
 local_db_engine = db_connector1.connect_to_local_db("db_credentials.yaml")
-db_connector1.execute_sql_file(local_db_engine, "constraint_queries.sql")
+db_connector1.execute_sql_file(local_db_engine, "constraint_queries.sql", pull_response=False)
+
+# Perform the required analytics queries
+analytics_queries(db_connector1, local_db_engine, "analytics.sql")

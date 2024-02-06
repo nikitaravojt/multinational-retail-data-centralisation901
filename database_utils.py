@@ -1,5 +1,5 @@
 import yaml
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 class DatabaseConnector():
     """Class specifying methods to perform database operations
@@ -75,12 +75,34 @@ class DatabaseConnector():
 
         df.to_sql(table_name, con=engine, if_exists='replace', index=False)
 
-    def execute_sql_file(self, engine, sql_filepath):
+    def execute_sql_file(self, engine, sql_filepath, pull_response=False):
         """Reads an SQL query file given its sql_filepath.
         Executes the statements within the file given the 
         target "engine"."""
         with open(sql_filepath, 'r') as file:
             sql_statements = file.read()
 
+        statements = sql_statements.split(';')
+        response_array = [] # list containing response lists of entire SQL file
+
+        # with engine.connect() as connection:
+        #     for statement in statements:
+        #         if statement.strip():
+        #             query_response = connection.execute(text(statement)).fetchall()
+        #             query_response_dict = {}
+        #             for response in query_response:
+        #                 key, value = response
+        #                 query_response_dict[str(key)] = str(value)  
+
+        #             all_responses.append(query_response_dict)
+
         with engine.connect() as connection:
-            connection.execute(sql_statements)
+            for statement in statements:
+                if statement.strip():
+                    query_response = connection.execute(text(statement)).fetchall()
+                    if pull_response:
+                        query_response_list = [list(response) for response in query_response]
+                        response_array.append(query_response_list)
+
+        if pull_response:
+            return response_array    
