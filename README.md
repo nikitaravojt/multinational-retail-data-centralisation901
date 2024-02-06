@@ -48,7 +48,7 @@ have the following format:
     LOCAL_PORT: 5432
 
 ## File Structure
-The project contains three main files:
+The project contains the following files:
   - database_utils.py - provides class methods for database operations such as reading credentials from a .yaml file,
      generating sqlalchemy engines for connecting to remote/local DBs and uploading clean dataframes, as well as listing
      tables found in a target database.
